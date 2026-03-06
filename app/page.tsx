@@ -2,11 +2,13 @@
 
 import { supabase } from '@/lib/supabaseClient'
 
-export default function LoginPage() {
+export default function Page() {
 
-  const handleGoogleLogin = async () => {
+  const login = async () => {
+    alert("clicked")
+
     await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`
       }
@@ -15,10 +17,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <button
-        onClick={handleGoogleLogin}
-        className="px-6 py-3 bg-black text-white rounded"
-      >
+      <button onClick={login}>
         Sign in with Google
       </button>
     </div>
