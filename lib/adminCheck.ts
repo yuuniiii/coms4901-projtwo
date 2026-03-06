@@ -12,7 +12,7 @@ export async function adminCheck() {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    redirect('/login');
+    redirect('/');
   }
 
   // 2. Fetch the user's profile to check superadmin status
@@ -23,7 +23,7 @@ export async function adminCheck() {
     .single();
 
   if (profileError || !profile || !profile.is_superadmin) {
-    redirect('/login');
+    redirect('/');
   }
 
   return { user, profile };
