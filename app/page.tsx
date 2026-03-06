@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabaseClient'
 
 export default function Page() {
 
-  const login = async () => {
-    alert("clicked")
+  async function login() {
+    console.log("clicked")
 
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -16,10 +16,13 @@ export default function Page() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <button onClick={login}>
+    <main className="flex min-h-screen items-center justify-center">
+      <button
+        onClick={login}
+        className="px-6 py-3 bg-black text-white rounded"
+      >
         Sign in with Google
       </button>
-    </div>
+    </main>
   )
 }
