@@ -1,28 +1,20 @@
-'use client'
+"use client"
 
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from "@/lib/supabaseClient"
 
-export default function Page() {
-
-  async function login() {
-    console.log("clicked")
-
+export default function LoginPage() {
+  const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: "http://localhost:3000/auth/callback"
       }
     })
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <button
-        onClick={login}
-        className="px-6 py-3 bg-black text-white rounded"
-      >
-        Sign in with Google
-      </button>
-    </main>
+    <button onClick={signInWithGoogle}>
+      Sign in with Google
+    </button>
   )
 }

@@ -1,32 +1,43 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabaseServer"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 export async function GET(request: Request) {
-
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
 
+  console.log("CALLBACK code:", code)
+
   if (!code) {
-    return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+    console.log("NO CODE")
+    return NextResponse.redirect(`${origin}/`)
   }
 
-  const supabase = await createClient()
+  const cookieStore = await cookies()
+  const response = NextResponse.redirect(`${origin}/admin`)
 
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          console.log("SETTING COOKIE:", name)
+          response.cookies.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          console.log("REMOVING COOKIE:", name)
+          response.cookies.set({ name, value: "", ...options })
+        },
+      },
+    }
+  )
 
-  if (error || !data.user) {
-    return NextResponse.redirect(`${origin}/auth/auth-code-error`)
-  }
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  console.log("EXCHANGE ERROR:", error)
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_superadmin")
-    .eq("id", data.user.id)
-    .single()
-
-  if (profile?.is_superadmin) {
-    return NextResponse.redirect(`${origin}/admin`)
-  }
-
-  return NextResponse.redirect(origin)
+  return response
 }
