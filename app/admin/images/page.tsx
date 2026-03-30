@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Table } from '@/components/Table';
+import { uploadImage, updateRecord, deleteRecord } from '@/lib/actions';
 
 export default function AdminImages() {
   const [images, setImages] = useState<any[]>([]);
@@ -14,6 +15,7 @@ export default function AdminImages() {
     is_public: false,
     is_common_use: false
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchImages = async () => {
     setLoading(true);
@@ -33,27 +35,35 @@ export default function AdminImages() {
     e.preventDefault();
     setLoading(true);
 
-    if (editingImage) {
-      const { error } = await supabase
-        .from('images')
-        .update({
+    try {
+      if (editingImage) {
+        await updateRecord('images', editingImage.id, {
           ...formData,
           modified_datetime_utc: new Date().toISOString()
-        })
-        .eq('id', editingImage.id);
-      if (!error) {
-        setEditingImage(null);
-        setFormData({ url: '', image_description: '', is_public: false, is_common_use: false });
-        fetchImages();
+        }, '/admin/images');
+      } else {
+        const file = fileInputRef.current?.files?.[0];
+        if (file) {
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          uploadFormData.append('description', formData.image_description);
+          uploadFormData.append('is_public', String(formData.is_public));
+          uploadFormData.append('is_common_use', String(formData.is_common_use));
+          await uploadImage(uploadFormData);
+        } else {
+          // Fallback if no file selected (just use URL)
+          const { error } = await supabase.from('images').insert([formData]);
+          if (error) throw error;
+        }
       }
-    } else {
-      const { error } = await supabase
-        .from('images')
-        .insert([formData]);
-      if (!error) {
-        setFormData({ url: '', image_description: '', is_public: false, is_common_use: false });
-        fetchImages();
-      }
+      setEditingImage(null);
+      setFormData({ url: '', image_description: '', is_public: false, is_common_use: false });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      fetchImages();
+    } catch (err) {
+      alert('Error saving image: ' + (err as any).message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -65,12 +75,13 @@ export default function AdminImages() {
       is_public: img.is_public || false,
       is_common_use: img.is_common_use || false
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this image?')) {
-      const { error } = await supabase.from('images').delete().eq('id', id);
-      if (!error) fetchImages();
+      await deleteRecord('images', id, '/admin/images');
+      fetchImages();
     }
   };
 
@@ -83,18 +94,30 @@ export default function AdminImages() {
       {/* Form Section */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-zinc-200">
         <h2 className="text-lg font-semibold mb-4">
-          {editingImage ? 'Edit Image' : 'Add New Image'}
+          {editingImage ? 'Edit Image' : 'Add / Upload New Image'}
         </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {!editingImage && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-zinc-700">Upload File (Optional)</label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="w-full mt-1 px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none"
+                accept="image/*"
+              />
+              <p className="text-xs text-zinc-400 mt-1">If you upload a file, the URL field below will be ignored.</p>
+            </div>
+          )}
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-zinc-700">Image URL</label>
+            <label className="block text-sm font-medium text-zinc-700">Image URL {editingImage ? '' : '(or use field above)'}</label>
             <input
               type="url"
               value={formData.url}
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
               className="w-full mt-1 px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none"
               placeholder="https://example.com/image.jpg"
-              required
+              disabled={!!editingImage && !!formData.url && !formData.url.includes('admin-uploads')}
             />
           </div>
           <div className="col-span-2">
@@ -129,9 +152,9 @@ export default function AdminImages() {
             <button
               type="submit"
               disabled={loading}
-              className="bg-zinc-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-zinc-800 transition-colors"
+              className="bg-zinc-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50"
             >
-              {editingImage ? 'Update Image' : 'Create Image'}
+              {loading ? 'Processing...' : editingImage ? 'Update Image' : 'Create Image'}
             </button>
             {editingImage && (
               <button
