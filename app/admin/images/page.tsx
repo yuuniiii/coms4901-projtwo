@@ -38,7 +38,7 @@ export default function AdminImages() {
         .from('images')
         .update({
           ...formData,
-          modified_datetime_utc: new Promise(resolve => resolve(new Date().toISOString()))
+          modified_datetime_utc: new Date().toISOString()
         })
         .eq('id', editingImage.id);
       if (!error) {

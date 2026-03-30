@@ -6,11 +6,17 @@ export default async function AdminDashboard() {
   const supabase = await createClient();
 
   // 1. Most active users (ranked by number of captions submitted)
-  const { data: activeUsers } = await supabase
+  const { data: activeUsersRaw } = await supabase
     .from('profiles')
-    .select('first_name, last_name, email, captions(count)')
-    .order('captions(count)', { ascending: false })
-    .limit(5);
+    .select('first_name, last_name, email, captions(count)');
+
+  const activeUsers = (activeUsersRaw || [])
+    .map(u => ({
+      ...u,
+      caption_count: (u.captions as any)?.[0]?.count ?? 0,
+    }))
+    .sort((a, b) => b.caption_count - a.caption_count)
+    .slice(0, 5);
 
   // 2 & 3. Humor flavors (ranked by average rating)
   const { data: humorData } = await supabase
@@ -145,10 +151,10 @@ export default async function AdminDashboard() {
         <Table
           title="Most Active Users"
           headers={['User', 'Email', 'Captions']}
-          rows={(activeUsers || []).map(u => [
+          rows={activeUsers.map(u => [
             `${u.first_name} ${u.last_name}`,
             u.email,
-            (u.captions as any)[0]?.count
+            u.caption_count
           ])}
         />
 

@@ -17,9 +17,6 @@ export async function adminCheck() {
   }
 
   // 2. Authorize the user (check profile)
-  // We use the ADMIN client here to bypass RLS. 
-  // If RLS is strict on the 'profiles' table, the user might not be able to 
-  // read their own profile even if logged in, which causes a "false logout".
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('is_superadmin')
