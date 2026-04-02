@@ -4,29 +4,40 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Table } from '@/components/Table';
 import { createRecord, updateRecord, deleteRecord } from '@/lib/actions';
+import { Sparkles, Plus, Edit3, Trash2, X } from 'lucide-react';
 
 export default function AdminCaptionExamples() {
   const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any>(null);
   const [formData, setFormData] = useState({ image_description: '', caption: '', explanation: '', priority: 0 });
 
   const fetchData = async () => {
+    setLoading(true);
     const { data } = await supabase.from('caption_examples').select('*').order('priority', { ascending: false });
     setData(data || []);
+    setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      await updateRecord('caption_examples', editing.id, formData, '/admin/caption-examples');
-    } else {
-      await createRecord('caption_examples', formData, '/admin/caption-examples');
+    setLoading(true);
+    try {
+      if (editing) {
+        await updateRecord('caption_examples', editing.id, formData, '/admin/caption-examples');
+      } else {
+        await createRecord('caption_examples', formData, '/admin/caption-examples');
+      }
+      setEditing(null);
+      setFormData({ image_description: '', caption: '', explanation: '', priority: 0 });
+      fetchData();
+    } catch (err) {
+      alert('Error: ' + (err as any).message);
+    } finally {
+      setLoading(false);
     }
-    setEditing(null);
-    setFormData({ image_description: '', caption: '', explanation: '', priority: 0 });
-    fetchData();
   };
 
   const handleEdit = (item: any) => {
@@ -37,69 +48,139 @@ export default function AdminCaptionExamples() {
       explanation: item.explanation, 
       priority: item.priority 
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Delete?')) {
+    if (confirm('Are you sure you want to delete this example?')) {
       await deleteRecord('caption_examples', id, '/admin/caption-examples');
       fetchData();
     }
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-900">Caption Example Management</h1>
-
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg border border-zinc-200 space-y-4">
-        <h2 className="text-lg font-semibold">{editing ? 'Edit Example' : 'Add Example'}</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <input 
-            placeholder="Priority" 
-            type="number"
-            value={formData.priority} 
-            onChange={e => setFormData({...formData, priority: parseInt(e.target.value)})}
-            className="px-3 py-2 border rounded-md"
-          />
-          <input 
-            placeholder="Caption" 
-            value={formData.caption} 
-            onChange={e => setFormData({...formData, caption: e.target.value})}
-            className="px-3 py-2 border rounded-md"
-            required
-          />
+    <div className="space-y-12">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3 text-accent-1 mb-2">
+          <Sparkles className="w-5 h-5" />
+          <span className="text-xs font-black uppercase tracking-[0.3em]">Training Data</span>
         </div>
-        <textarea 
-          placeholder="Image Description" 
-          value={formData.image_description} 
-          onChange={e => setFormData({...formData, image_description: e.target.value})}
-          className="w-full px-3 py-2 border rounded-md"
-          required
-        />
-        <textarea 
-          placeholder="Explanation" 
-          value={formData.explanation} 
-          onChange={e => setFormData({...formData, explanation: e.target.value})}
-          className="w-full px-3 py-2 border rounded-md"
-          required
-        />
-        <div className="flex gap-2">
-          <button type="submit" className="bg-zinc-900 text-white px-4 py-2 rounded-md">Save</button>
-          {editing && <button type="button" onClick={() => setEditing(null)} className="bg-zinc-100 px-4 py-2 rounded-md">Cancel</button>}
-        </div>
-      </form>
+        <h1 className="text-5xl font-black tracking-tighter text-white uppercase">
+          CAPTION<span className="text-white/20">EXAMPLES</span>
+        </h1>
+      </div>
 
-      <Table
-        headers={['Caption', 'Description', 'Priority', 'Actions']}
-        rows={data.map(item => [
-          item.caption,
-          <div key={item.id} className="max-w-xs truncate">{item.image_description}</div>,
-          item.priority,
-          <div key={item.id} className="flex gap-2">
-            <button onClick={() => handleEdit(item)} className="text-zinc-900 font-semibold">Edit</button>
-            <button onClick={() => handleDelete(item.id)} className="text-red-600 font-semibold">Delete</button>
+      <div className="bg-white/[0.02] p-8 rounded-2xl border border-white/5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-accent-2/5 blur-[100px] -mr-32 -mt-32" />
+        
+        <h2 className="text-lg font-bold mb-8 flex items-center gap-3">
+          {editing ? <Edit3 className="w-5 h-5 text-accent-1" /> : <Plus className="w-5 h-5 text-accent-1" />}
+          {editing ? 'Modify Example' : 'Register New Example'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+          <div>
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Priority Weight</label>
+            <input 
+              type="number"
+              value={formData.priority} 
+              onChange={e => setFormData({...formData, priority: parseInt(e.target.value)})}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-sm text-white outline-none focus:border-accent-1/50 focus:bg-white/[0.07] transition-all placeholder:text-white/10"
+              required
+            />
           </div>
-        ])}
-      />
+
+          <div>
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Target Caption</label>
+            <input 
+              placeholder="The final output text..." 
+              value={formData.caption} 
+              onChange={e => setFormData({...formData, caption: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-sm text-white outline-none focus:border-accent-1/50 focus:bg-white/[0.07] transition-all placeholder:text-white/10"
+              required
+            />
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Input Image Description</label>
+            <textarea 
+              placeholder="Describe the source image in detail..." 
+              value={formData.image_description} 
+              onChange={e => setFormData({...formData, image_description: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-sm text-white outline-none focus:border-accent-1/50 focus:bg-white/[0.07] transition-all placeholder:text-white/10"
+              rows={3}
+              required
+            />
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Strategic Explanation</label>
+            <textarea 
+              placeholder="Why does this caption work? Explain the humor mechanics..." 
+              value={formData.explanation} 
+              onChange={e => setFormData({...formData, explanation: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-sm text-white outline-none focus:border-accent-1/50 focus:bg-white/[0.07] transition-all placeholder:text-white/10"
+              rows={3}
+              required
+            />
+          </div>
+
+          <div className="col-span-2 flex gap-4">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="bg-accent-1 text-navy-dark px-10 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-accent-1/80 transition-all disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : editing ? 'Commit Changes' : 'Initialize Example'}
+            </button>
+            {editing && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditing(null);
+                  setFormData({ image_description: '', caption: '', explanation: '', priority: 0 });
+                }} 
+                className="bg-white/5 text-white/40 px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Abort
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 text-white/20">
+          <span className="text-[10px] font-black uppercase tracking-[0.4em]">Example Library</span>
+          <div className="flex-1 h-px bg-white/5" />
+        </div>
+
+        <Table
+          headers={['Caption', 'Description', 'Priority', 'Actions']}
+          rows={data.map(item => [
+            <span key={item.id} className="text-white font-black tracking-tight">{item.caption}</span>,
+            <div key={item.id} className="max-w-xs text-white/60 text-xs line-clamp-2">{item.image_description}</div>,
+            <span key={item.id} className="text-accent-2 font-mono font-bold">{item.priority}</span>,
+            <div key={item.id} className="flex gap-6">
+              <button 
+                onClick={() => handleEdit(item)} 
+                className="text-white/40 hover:text-accent-1 font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Edit
+              </button>
+              <button 
+                onClick={() => handleDelete(item.id)} 
+                className="text-white/20 hover:text-accent-3 font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
+            </div>
+          ])}
+        />
+      </div>
     </div>
   );
 }

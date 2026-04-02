@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { StatsCard } from '@/components/StatsCard';
 import { Table } from '@/components/Table';
+import { Zap, TrendingUp, Users as UsersIcon, Image as ImageIcon } from 'lucide-react';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -98,7 +99,6 @@ export default async function AdminDashboard() {
 
   // Simple correlation calculation (Pearson)
   const calculateCorrelation = (captions: any[], sidechat: any[]) => {
-    // Match by content (simplification)
     const pairs: [number, number][] = [];
     captions.forEach(c => {
       const match = sidechat.find(s => s.content === c.content);
@@ -125,68 +125,110 @@ export default async function AdminDashboard() {
   const correlation = calculateCorrelation(allCaptions || [], sidechatPosts || []);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
+      {/* Header Section */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3 text-accent-1 mb-2">
+          <Zap className="w-5 h-5 fill-current" />
+          <span className="text-xs font-black uppercase tracking-[0.3em]">System Overview</span>
+        </div>
+        <h1 className="text-5xl font-black tracking-tighter text-white">
+          DASH<span className="text-white/20">BOARD</span>
+        </h1>
+        <p className="text-white/30 text-sm max-w-2xl font-medium">
+          Real-time analytics and content performance metrics across the captioning engine.
+        </p>
+      </div>
+
+      {/* Primary Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
-          title="Total Images" 
+          title="Total Library" 
           value={imageData?.length || 0} 
+          subtitle="Processed images"
+          variant={1}
         />
         <StatsCard 
-          title="Total Captions" 
+          title="Generated Captions" 
           value={allCaptions?.length || 0} 
+          subtitle="Total submissions"
+          variant={2}
         />
         <StatsCard 
-          title="Sidechat Correlation" 
+          title="Sentiment Correlation" 
           value={correlation} 
-          subtitle="Caption likes vs Sidechat likes"
+          subtitle="Internal vs Sidechat likes"
+          variant={3}
         />
         <StatsCard 
-          title="Top Flavor" 
+          title="Alpha Flavor" 
           value={humorStats[0]?.slug || 'N/A'} 
-          subtitle={`Avg Rating: ${humorStats[0]?.avg_rating || 0}`}
+          subtitle={`Top rated: ${humorStats[0]?.avg_rating || 0}`}
+          variant={1}
+        />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Table
+          title="Top Performance: Users"
+          headers={['Rank', 'Architect', 'Captions']}
+          rows={activeUsers.map((u, i) => [
+            <span key={i} className="font-bold text-accent-1">#0{i + 1}</span>,
+            <div key={i} className="flex flex-col">
+              <span className="font-bold text-white">{u.first_name} {u.last_name}</span>
+              <span className="text-[10px] text-white/30 lowercase">{u.email}</span>
+            </div>,
+            <span key={i} className="font-mono bg-white/5 px-2 py-1 rounded text-xs">{u.caption_count}</span>
+          ])}
+        />
+
+        <Table
+          title="Flavor Popularity"
+          headers={['Flavor Identifier', 'Performance']}
+          rows={humorStats.map((h, i) => [
+            <div key={i} className="flex flex-col">
+              <span className="font-bold text-white uppercase tracking-wider">{h.slug}</span>
+              <span className="text-[10px] text-white/30">{h.description}</span>
+            </div>,
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-accent-2" 
+                  style={{ width: `${Math.min((parseFloat(h.avg_rating as string) / 5) * 100, 100)}%` }} 
+                />
+              </div>
+              <span className="text-xs font-bold text-accent-2">{h.avg_rating}</span>
+            </div>
+          ])}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Table
-          title="Most Active Users"
-          headers={['User', 'Email', 'Captions']}
-          rows={activeUsers.map(u => [
-            `${u.first_name} ${u.last_name}`,
-            u.email,
-            u.caption_count
+          title="High Impact Visuals"
+          headers={['Media', 'Engagement Metric']}
+          rows={imageStats.map((img, i) => [
+            <div key={i} className="flex items-center gap-4">
+               <img src={img.url} alt="Image" className="w-14 h-14 object-cover rounded-xl border border-white/10" />
+               <span className="text-[10px] text-white/20 font-mono truncate max-w-[150px]">{img.url}</span>
+            </div>,
+            <div key={i} className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-accent-3" />
+              <span className="text-xl font-black text-white">{img.total_rating}</span>
+            </div>
           ])}
         />
 
         <Table
-          title="Humor Flavor Rankings"
-          headers={['Flavor', 'Slug', 'Avg Rating']}
-          rows={humorStats.map(h => [
-            h.description,
-            h.slug,
-            h.avg_rating
-          ])}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Table
-          title="Most Popular Images"
-          headers={['Image', 'URL', 'Total Rating']}
-          rows={imageStats.map(img => [
-            <img key={img.id} src={img.url} alt="Image" className="w-12 h-12 object-cover rounded" />,
-            <span key={img.id} className="truncate max-w-xs block">{img.url}</span>,
-            img.total_rating
-          ])}
-        />
-
-        <Table
-          title="Top Caption + Image Combos"
-          headers={['Caption', 'Image', 'Rating']}
+          title="Top Content Combos"
+          headers={['Contextual Output', 'Rating']}
           rows={captionStats.map((c, i) => [
-            <span key={i} className="whitespace-normal min-w-[200px] block">{c.content}</span>,
-            <img key={i} src={c.image_url} alt="Image" className="w-12 h-12 object-cover rounded" />,
-            c.rating
+            <div key={i} className="flex items-center gap-4 min-w-[300px]">
+              <img src={c.image_url} alt="Image" className="w-10 h-10 object-cover rounded-lg border border-white/10" />
+              <span className="text-xs text-white/70 leading-relaxed italic">"{c.content}"</span>
+            </div>,
+            <span key={i} className="font-black text-accent-1 text-lg">{c.rating}</span>
           ])}
         />
       </div>
