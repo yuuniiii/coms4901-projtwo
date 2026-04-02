@@ -1,18 +1,29 @@
 import { createClient } from '@/lib/supabaseServer';
 import { Table } from '@/components/Table';
 import { ClipboardList } from 'lucide-react';
+import { Pagination } from '@/components/Pagination';
 
-export default async function AdminCaptionRequests() {
+export default async function AdminCaptionRequests({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = parseInt(pageParam || '1');
+  const limit = 10;
+  const offset = (page - 1) * limit;
+
   const supabase = await createClient();
 
-  const { data: requests } = await supabase
+  const { data: requests, count } = await supabase
     .from('caption_requests')
     .select(`
       *,
-      profiles (first_name, last_name, email),
+      profile_id,
       images (url)
-    `)
-    .order('created_datetime_utc', { ascending: false });
+    `, { count: 'exact' })
+    .order('created_datetime_utc', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   return (
     <div className="space-y-12">
@@ -33,21 +44,39 @@ export default async function AdminCaptionRequests() {
         </div>
         
         <Table
-          headers={['ID', 'User', 'Image', 'Timestamp']}
-          rows={(requests || []).map(r => [
-            <span key={r.id} className="text-[10px] font-mono text-white/40">{r.id.slice(0, 8)}...</span>,
-            <div key={r.id} className="space-y-1">
-              <p className="font-bold text-white tracking-tight">{(r.profiles as any)?.first_name} {(r.profiles as any)?.last_name}</p>
-              <p className="text-[10px] text-white/20 font-mono lowercase">{(r.profiles as any)?.email}</p>
-            </div>,
-            <div key={r.id} className="relative group w-12 h-12">
-              <img src={(r.images as any)?.url} className="w-full h-full object-cover rounded-lg border border-white/10 group-hover:border-accent-1/50 transition-all" />
-            </div>,
-            <span key={r.id} className="text-xs text-white/40 font-medium">
-              {new Date(r.created_datetime_utc).toLocaleDateString()}
-              <span className="block text-[10px] opacity-50">{new Date(r.created_datetime_utc).toLocaleTimeString()}</span>
-            </span>
-          ])}
+  headers={['ID', 'User', 'Image', 'Timestamp']}
+  rows={(requests || []).map(r => [
+    <span key={`id-${r.id}`} className="text-[10px] font-mono text-white/40">
+      #{r.id}
+    </span>,
+
+    // 👇 THIS IS THE CHANGE
+    <span key={`user-${r.id}`} className="text-xs font-mono text-white/60">
+      {r.profile_id || '—'}
+    </span>,
+
+    <div key={`image-${r.id}`} className="relative group w-12 h-12">
+      <img
+        src={(r.images as any)?.url}
+        className="w-full h-full object-cover rounded-lg border border-white/10 group-hover:border-accent-1/50 transition-all"
+        alt="Request Asset"
+      />
+    </div>,
+
+    <span key={`time-${r.id}`} className="text-xs text-white/40 font-medium">
+      {new Date(r.created_datetime_utc).toLocaleDateString()}
+      <span className="block text-[10px] opacity-50">
+        {new Date(r.created_datetime_utc).toLocaleTimeString()}
+      </span>
+    </span>
+  ])}
+/>
+
+        <Pagination 
+          currentPage={page} 
+          totalCount={count || 0} 
+          limit={limit} 
+          baseUrl="/admin/caption-requests" 
         />
       </div>
     </div>

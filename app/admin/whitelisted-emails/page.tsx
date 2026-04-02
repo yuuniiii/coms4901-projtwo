@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Table } from '@/components/Table';
 import { createRecord, updateRecord, deleteRecord } from '@/lib/actions';
+import { Mail, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function AdminWhitelistedEmails() {
   const [data, setData] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
   const [formData, setFormData] = useState({ email_address: '' });
+  const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
     const { data } = await supabase.from('whitelist_email_addresses').select('*').order('email_address');
@@ -19,58 +22,127 @@ export default function AdminWhitelistedEmails() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      await updateRecord('whitelist_email_addresses', editing.id, formData, '/admin/whitelisted-emails');
-    } else {
-      await createRecord('whitelist_email_addresses', formData, '/admin/whitelisted-emails');
+    setLoading(true);
+    try {
+      if (editing) {
+        await updateRecord('whitelist_email_addresses', editing.id, formData, '/admin/whitelisted-emails');
+      } else {
+        await createRecord('whitelist_email_addresses', formData, '/admin/whitelisted-emails');
+      }
+      setEditing(null);
+      setFormData({ email_address: '' });
+      await fetchData();
+    } catch (error) {
+      console.error('Error saving email:', error);
+      alert('Failed to save email.');
+    } finally {
+      setLoading(false);
     }
-    setEditing(null);
-    setFormData({ email_address: '' });
-    fetchData();
   };
 
   const handleEdit = (item: any) => {
     setEditing(item);
     setFormData({ email_address: item.email_address });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Delete?')) {
-      await deleteRecord('whitelist_email_addresses', id, '/admin/whitelisted-emails');
-      fetchData();
+    if (confirm('Are you sure you want to delete this email?')) {
+      try {
+        await deleteRecord('whitelist_email_addresses', id, '/admin/whitelisted-emails');
+        await fetchData();
+      } catch (error) {
+        console.error('Error deleting email:', error);
+        alert('Failed to delete email.');
+      }
     }
   };
 
+  const inputClasses = "w-full bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-accent-1/50 transition-all text-sm font-medium";
+  const labelClasses = "text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-2 block";
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-900">Whitelisted Email Addresses</h1>
-
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg border border-zinc-200 space-y-4">
-        <h2 className="text-lg font-semibold">{editing ? 'Edit Email' : 'Add Email'}</h2>
-        <input 
-          type="email"
-          placeholder="Email Address (e.g. user@example.com)" 
-          value={formData.email_address} 
-          onChange={e => setFormData({ email_address: e.target.value })}
-          className="w-full px-3 py-2 border rounded-md"
-          required
-        />
-        <div className="flex gap-2">
-          <button type="submit" className="bg-zinc-900 text-white px-4 py-2 rounded-md">Save</button>
-          {editing && <button type="button" onClick={() => setEditing(null)} className="bg-zinc-100 px-4 py-2 rounded-md">Cancel</button>}
+    <div className="space-y-12">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3 text-accent-1 mb-2">
+          <Mail className="w-5 h-5 fill-current" />
+          <span className="text-xs font-black uppercase tracking-[0.3em]">Access Control</span>
         </div>
-      </form>
+        <h1 className="text-5xl font-black tracking-tighter text-white uppercase">
+          WHITELISTED<span className="text-white/20">EMAILS</span>
+        </h1>
+      </div>
 
-      <Table
-        headers={['Email Address', 'Actions']}
-        rows={data.map(item => [
-          item.email_address,
-          <div key={item.id} className="flex gap-2">
-            <button onClick={() => handleEdit(item)} className="text-zinc-900 font-semibold">Edit</button>
-            <button onClick={() => handleDelete(item.id)} className="text-red-600 font-semibold">Delete</button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1">
+          <form onSubmit={handleSubmit} className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl space-y-6 sticky top-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-accent-1/10 flex items-center justify-center">
+                {editing ? <Pencil className="w-4 h-4 text-accent-1" /> : <Plus className="w-4 h-4 text-accent-1" />}
+              </div>
+              <h2 className="text-lg font-bold text-white tracking-tight">{editing ? 'Edit Email' : 'Add New Email'}</h2>
+            </div>
+
+            <div>
+              <label className={labelClasses}>Email Address</label>
+              <input 
+                type="email"
+                placeholder="user@example.com" 
+                value={formData.email_address} 
+                onChange={e => setFormData({ email_address: e.target.value })}
+                className={inputClasses}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-accent-1 hover:bg-accent-1/90 disabled:opacity-50 text-[#111434] font-black uppercase text-xs py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {loading ? 'Saving...' : (editing ? 'Update Email' : 'Create Email')}
+              </button>
+              {editing && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setEditing(null);
+                    setFormData({ email_address: '' });
+                  }} 
+                  className="w-full bg-white/5 hover:bg-white/10 text-white/60 font-black uppercase text-xs py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center gap-3 text-white/20">
+            <span className="text-[10px] font-black uppercase tracking-[0.4em]">Allowed Identities</span>
+            <div className="flex-1 h-px bg-white/5" />
           </div>
-        ])}
-      />
+
+          <Table
+            headers={['Email Address', 'Actions']}
+            rows={data.map(item => [
+              <span key={item.id} className="font-bold text-white tracking-tight">{item.email_address}</span>,
+              <div key={item.id} className="flex gap-4">
+                <button onClick={() => handleEdit(item)} className="text-accent-2 hover:text-accent-2/80 transition-colors">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(item.id)} className="text-red-400/50 hover:text-red-400 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ])}
+          />
+        </div>
+      </div>
     </div>
   );
 }
