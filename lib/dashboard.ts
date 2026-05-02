@@ -95,47 +95,91 @@ const activityStream = (latestVotes || []).map((v) => ({
   
   const reportedCaptionsCount = reportedCount || 0;
 
-  // 7. Top 5 humor flavors with highest performance (> 10 captions rated)
-  const { data: flavors } = await supabase
-    .from('humor_flavors')
-    .select(`
-      slug,
-      captions (
-        id,
-        caption_votes (vote_value)
-      )
-    `);
+  // --- QUERIES 7 & 8: REFACTORED TO AVOID NESTED TRUNCATION ---
 
-  const humorPerformances = (flavors || []).map(f => {
-    const captionsWithVotes = f.captions.filter((c: any) => c.caption_votes.length > 0);
-    if (captionsWithVotes.length <= 10) return null;
+  // Reusable pagination helper that fetches all rows in batches of 1000
+  const fetchAll = async (table: string, columns: string) => {
+    const { count, error: countError } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true });
+    
+    if (countError) throw countError;
+    const all: any[] = [];
+    const batchSize = 1000;
+    const pages = Math.ceil((count || 0) / batchSize);
+    
+    // Process in batches of 10 parallel requests to be efficient but not "excessive"
+    const concurrency = 10;
+    for (let i = 0; i < pages; i += concurrency) {
+      const pagePromises = [];
+      for (let j = i; j < i + concurrency && j < pages; j++) {
+        pagePromises.push(
+          supabase
+            .from(table)
+            .select(columns)
+            .range(j * batchSize, (j + 1) * batchSize - 1)
+        );
+      }
+      const results = await Promise.all(pagePromises);
+      for (const res of results) {
+        if (res.error) throw res.error;
+        if (res.data) all.push(...res.data);
+      }
+    }
+    return all;
+  };
 
-    let flavorTotalVotes = 0;
-    let flavorUpvotes = 0;
-    f.captions.forEach((c: any) => {
-      c.caption_votes.forEach((v: any) => {
-        flavorTotalVotes++;
-        if (v.vote_value > 0) flavorUpvotes++;
-      });
-    });
+  // Fetch all necessary data for both queries independently
+  // This avoids the 1000-row limit on nested relations
+  const [allFlavors, allCaptions, allVotes] = await Promise.all([
+    fetchAll('humor_flavors', 'id, slug'),
+    fetchAll('captions', 'id, humor_flavor_id'),
+    fetchAll('caption_votes', 'caption_id, vote_value')
+  ]);
 
-    return {
-      name: f.slug,
-      performance: flavorTotalVotes > 0 ? (flavorUpvotes / flavorTotalVotes) * 100 : 0
-    };
-  })
-  .filter((f): f is { name: string; performance: number } => f !== null)
-  .sort((a, b) => b.performance - a.performance)
-  .slice(0, 5);
+  // Map for quick caption -> flavor lookup
+  const captionToFlavorMap = new Map<string, string>();
+  allCaptions.forEach(c => captionToFlavorMap.set(c.id, c.humor_flavor_id));
 
-  // 8. Caption performance distribution
-  const { data: captionsWithVotes } = await supabase
-    .from('captions')
-    .select(`
-      id,
-      caption_votes (vote_value)
-    `);
+  // Accumulators for performance metrics
+  // captionId -> { total: number, upvotes: number }
+  const captionStats = new Map<string, { total: number, upvotes: number }>();
+  // flavorId -> { total: number, upvotes: number }
+  const flavorStats = new Map<string, { total: number, upvotes: number }>();
 
+  allVotes.forEach(v => {
+    // Update individual caption stats (for Query 8)
+    const cStat = captionStats.get(v.caption_id) || { total: 0, upvotes: 0 };
+    cStat.total++;
+    if (v.vote_value > 0) cStat.upvotes++;
+    captionStats.set(v.caption_id, cStat);
+
+    // Update flavor-wide stats (for Query 7)
+    const flavorId = captionToFlavorMap.get(v.caption_id);
+    if (flavorId) {
+      const fStat = flavorStats.get(flavorId) || { total: 0, upvotes: 0 };
+      fStat.total++;
+      if (v.vote_value > 0) fStat.upvotes++;
+      flavorStats.set(flavorId, fStat);
+    }
+  });
+
+  // Query 7: Top 5 humor flavors by performance
+  const humorPerformances = allFlavors
+    .map(f => {
+      const stats = flavorStats.get(f.id);
+      // Threshold: only include flavors with more than 10 total votes
+      if (!stats || stats.total <= 10) return null; 
+      return {
+        name: f.slug,
+        performance: (stats.upvotes / stats.total) * 100
+      };
+    })
+    .filter((f): f is { name: string; performance: number } => f !== null)
+    .sort((a, b) => b.performance - a.performance)
+    .slice(0, 10);
+
+  // Query 8: Caption performance distribution
   const distribution = [
     { bucket: '0–20%', count: 0 },
     { bucket: '20–40%', count: 0 },
@@ -144,10 +188,9 @@ const activityStream = (latestVotes || []).map((v) => ({
     { bucket: '80–100%', count: 0 },
   ];
 
-  captionsWithVotes?.forEach((c: any) => {
-    if (c.caption_votes.length === 0) return;
-    const upvotes = c.caption_votes.filter((v: any) => v.vote_value > 0).length;
-    const rate = (upvotes / c.caption_votes.length) * 100;
+  captionStats.forEach(stats => {
+    if (stats.total === 0) return;
+    const rate = (stats.upvotes / stats.total) * 100;
 
     if (rate <= 20) distribution[0].count++;
     else if (rate <= 40) distribution[1].count++;
